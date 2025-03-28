@@ -62,12 +62,17 @@ module key_joystick
     input wire         lk2,         // Link 2 on motherboard
     input wire         lk3,         // Link 3 on motherboard
 	input wire   [3:0] addr,		// Address lines for keyboard.  Mapped into 3FF0-3FFB in bank 3
-	output logic [7:0] key_data, 	// data lines returned from scanning keyboard and joystick
+	output logic [7:0] key_d, 	// data lines returned from scanning keyboard and joystick
+	input wire         rd,
 	// Colour line control signals frm F9/F10/F11 keys
 	output logic 	  line_up,	
 	output logic      line_down, 
 	output logic	  toggle_full	
 );
+
+
+logic [7:0] key_data;
+assign key_d = rd ? key_data : 8'hff;
 
 localparam REPEAT_TIME = 64000000 / 150;  // Repeat time for F9 and F10 keys (10 per second)
 logic		 up_key;

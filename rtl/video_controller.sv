@@ -46,7 +46,7 @@ module video_controller(
     input wire [1:0] fake_colour_mode,         // Fake colour mode enabled
 	input wire [1:0] pcw_video_mode,     // Fake colour mode EGA enabled
     input wire [7:0] fake_end,      // Fake colour end row
-    output logic [7:0] ypos,        // Current yposition for fake colour comparison logic
+    output logic [8:0] ypos,        // Current yposition for fake colour comparison logic
 	output logic [16:0] vid_addr,   // Address Bus out for reading pixel data & roller ram
 	input wire [7:0] din,           // Data in for pixel data and roller ram
     input  [3:0] VShift,
@@ -133,7 +133,7 @@ module video_controller(
                         GET_LSB: begin
                             video_lookup <= 1'b1;
                             // Read LSB of address
-                            lookup_addr <= {roller_ptr[7:0],9'b0} + (((y + yscroll) & 8'hff) << 1) + 1;
+                            lookup_addr <= {roller_ptr[7:0],9'b0} + (((y + yscroll) & 8'hff) << 1) + 17'd1;
                             // din should equal LSB from previous step
                             roller_bits[7:0] <= din;
                             roller_state <= GET_MSB;

@@ -155,6 +155,7 @@ localparam CONF_STR = {
 	"PCW;;",
 	"S0U,DSK,Mount A:;",
 	"S1U,DSK,Mount B:;",
+	"O8,Disk Speed,Real,Fast;",
 	`SEP
 	"O4,Model,8256/8512,9256/9512+;",
 	"OFG,Memory Size,256K,512K,1MB,2MB;",
@@ -369,6 +370,8 @@ pcw_core pcw_core
 	.img_mounted(img_mounted),
 	.img_size(img_size),
 	.density({1'b1, status[4]}),		// 8256/512 = A=SD, 9512+ A=DD
+	.fast(status[8]),
+
 
 	.sd_lba(sd_lba),
 	.sd_rd(sd_rd),

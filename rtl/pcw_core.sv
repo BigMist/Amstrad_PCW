@@ -81,6 +81,7 @@ module pcw_core(
     input wire [1:0]  img_mounted,
 	 input wire [31:0] img_size,
     input wire [1:0]  density,
+	 input wire        fast,
 
 	 output logic [31:0] sd_lba,
 	 output logic [1:0] sd_rd,
@@ -179,9 +180,9 @@ module pcw_core(
 	 reg cpu_ce_g_p /* synthesis keep */;
     reg cpu_ce_g_n /* synthesis keep */;
     reg gclk /* synthesis keep */;
-    assign cpu_ce_g_p = dn_active ? 0 : cpu_ce_p;
-    assign cpu_ce_g_n = dn_active ? 0 : cpu_ce_n;
-    assign gclk = dn_active ? 0 : clk_sys;
+    assign cpu_ce_g_p = dn_active ? 1'b0 : cpu_ce_p;
+    assign cpu_ce_g_n = dn_active ? 1'b0 : cpu_ce_n;
+    assign gclk = dn_active ? 1'b0 : clk_sys;
 	 
 	 reg cpu_reset;
 	 assign cpu_reset = reset || dn_active;
@@ -242,7 +243,12 @@ module pcw_core(
     assign memr = cpurd | cpumreq;
     assign memw = cpuwr | cpumreq;
     logic kbd_sel/* synthesis keep */;
-    assign kbd_sel = ram_b_addr[20:4]==17'b00000111111111111 && memr==1'b0 ? 1'b1 : 1'b0;
+    //assign kbd_sel = ram_b_addr[20:4]==17'b00000111111111111 && memr==1'b0 ? 1'b1 : 1'b0;
+	 
+	
+	 logic[7:0] mem_do;
+	 assign mem_do = ram_b_addr[20:4]==17'b00000111111111111 ? kbd_data : ram_b_dout ;
+	 
     logic daisy_sel;
     assign daisy_sel = ((cpua[7:0]==8'hfc || cpua[7:0]==8'hfd) & model) && (~ior | ~iow)? 1'b1 : 1'b0;
 
@@ -372,7 +378,7 @@ wire iow_falling_edge = (iow_prev == 1'b0) && (iow == 1'b1);
             end
         end
         else begin
-            cpudi = kbd_sel ? kbd_data : ram_b_dout;
+				cpudi =  memr ? 8'hff : mem_do;
         end
     end
     assign portF8 = {1'b0,vblank,fdc_int_latch,~ntsc,timer_misses};
@@ -450,9 +456,9 @@ wire iow_falling_edge = (iow_prev == 1'b0) && (iow == 1'b1);
                 if (index_to_colour > 4'hF) index_to_colour = 4'h0;
                 case (pcw_video_mode)
 					0: value_to_change = index_to_colour;
-					1: value_to_change = (index_to_colour) + 2;
-					2: value_to_change = (index_to_colour) + 6;
-					3: value_to_change = (index_to_colour) + 6;
+					1: value_to_change = (index_to_colour) + 24'd2;
+					2: value_to_change = (index_to_colour) + 24'd6;
+					3: value_to_change = (index_to_colour) + 24'd6;
 				endcase
                 // blue values
                     case (cpudo % 4)
@@ -489,19 +495,19 @@ wire iow_falling_edge = (iow_prev == 1'b0) && (iow == 1'b1);
                 // join the values 
                 colour_256 = {red_256, green_256, blue_256};
 		        colour_table[value_to_change]  =colour_256;
-                pcw_last_index_colour_change <= pcw_last_index_colour_change + 1;
+                pcw_last_index_colour_change <= pcw_last_index_colour_change + 4'd1;
             end else if (port80 & 8'h10) begin
 				// change color RGB
 				index_to_colour = pcw_last_index_colour_change ;
 				case (pcw_video_mode)
-					0: value_to_change = index_to_colour % 2;
-					1: value_to_change = (index_to_colour % 4) + 2;
-					2: value_to_change = (index_to_colour % 16) + 6;
-					3: value_to_change = (index_to_colour % 16) + 6;
+					0: value_to_change = index_to_colour % 24'd2;
+					1: value_to_change = (index_to_colour % 4) + 24'd2;
+					2: value_to_change = (index_to_colour % 16) + 24'd6;
+					3: value_to_change = (index_to_colour % 16) + 24'd6;
 				endcase
 				component = pcw_last_index_colour_change_component;
 				// Calculate the mask and shift value for the current component
-				rotation = component * 8; // 0, 8, or 16 for R, G, B
+				rotation = component * 5'd8; // 0, 8, or 16 for R, G, B
 				mask_to_apply = ~(24'hFF << rotation); // Mask to clear the current component
 				value_to_apply = cpudo << rotation; // Shift the new value to the correct position
 				// Update only the current component in the color_256 table
@@ -509,10 +515,10 @@ wire iow_falling_edge = (iow_prev == 1'b0) && (iow == 1'b1);
 				// Increment the component counter
 				if (pcw_last_index_colour_change_component >= 2'h2) begin
 					pcw_last_index_colour_change_component <= 2'h0; // Wrap around after 2
-					pcw_last_index_colour_change <= pcw_last_index_colour_change + 1;
+					pcw_last_index_colour_change <= pcw_last_index_colour_change + 4'd1;
 					if (pcw_last_index_colour_change >= 4'h0f) pcw_last_index_colour_change <= 4'h0;
 				end else begin
-					pcw_last_index_colour_change_component <= pcw_last_index_colour_change_component + 1;
+					pcw_last_index_colour_change_component <= pcw_last_index_colour_change_component + 2'd1;
 				end
             end else begin
                 // Cambio modo
@@ -564,36 +570,6 @@ wire iow_falling_edge = (iow_prev == 1'b0) && (iow == 1'b1);
 						  // Optional default case
 					 end
 				endcase
-//        begin
-//            // decode command for System Control Register
-//            if(cpudo[3:0] == 4'd0) ; // Terminate bootstrap (do nothing)t
-//            else if(cpudo[3:0] == 4'd2) begin           // Disk to NMI
-//                disk_to_nmi <= 1'b1;
-//                disk_to_int <= 1'b0;
-//                int_mode_change <= 1'b1;
-//            end
-//            else if(cpudo[3:0] == 4'd3) begin           // Disk to INT
-//                disk_to_int <= 1'b1;
-//                disk_to_nmi <= 1'b0;
-//                int_mode_change <= 1'b1;
-//            end
-//            else if(cpudo[3:0] == 4'd4) begin           // Disconnect Disk Int/NMI
-//                disk_to_int <= 1'b0;
-//                disk_to_nmi <= 1'b0;
-//                int_mode_change <= 1'b1;
-//            end
-//            else if(cpudo[3:0] == 4'd5) begin           // Set FDC TC
-//                tc <= 1'b1;
-//            end            
-//            else if(cpudo[3:0] == 4'd6) begin           // Clear FDC TC
-//                tc <= 1'b0;
-//            end            
-//            else if(cpudo[3:0] == 4'd9) motor <= 1'b1;
-//            else if(cpudo[3:0] == 4'd10) motor <= 1'b0;
-//            else if(cpudo[3:0] == 4'd11) speaker_enable <= 1'b1;
-//            else if(cpudo[3:0] == 4'd12) speaker_enable <= 1'b0;
-//            //if(img_mounted) motor <= 0; // Reset on new image mounted
-//        end
     end
 
     // detect fdc interrupt edge
@@ -656,7 +632,7 @@ wire iow_falling_edge = (iow_prev == 1'b0) && (iow == 1'b1);
         // Deferred timer cleaning
         if (clear_timer == 1'b1)
         begin
-            if (~last_cpum1 & cpum1 & cpuiorq)
+            if (~last_cpum1 & cpum1 & cpuiorq )
             begin
                 clear_timer <= 1'b0;
                 timer_misses <= 'b0;
@@ -1014,9 +990,10 @@ wire iow_falling_edge = (iow_prev == 1'b0) && (iow == 1'b1);
     logic line_up, line_down;   // line up and down signals for moving fake colour
     logic toggle_full;          // Toggle full screen colour on / off
     logic [7:0] kbd_data;
+	 
     key_joystick keyjoy(
         .reset(reset),
-        .clk_sys(clk_sys),
+		  .clk_sys(clk_sys),
         .ps2_key(ps2_key),
         .joy0(joy0),
         .joy1(joy1),
@@ -1024,7 +1001,8 @@ wire iow_falling_edge = (iow_prev == 1'b0) && (iow == 1'b1);
         .lk2(1'b0),
         .lk3(1'b0),
         .addr(cpua[3:0]),
-        .key_data(kbd_data),
+        .key_d(kbd_data),
+		  .rd(~cpurd),
         .keymouse(mouse_type==MOUSE_KEYMOUSE),
         .mouse_pulse(ps2_mouse[24]),
         .line_up(line_up),
@@ -1094,6 +1072,8 @@ psg soundchip(
 	 assign motor_p ={motor,motor};
     logic fdc_int;
     
+	 wire [ 1:0] prepared;
+	 
 	 u765 u765
     (
         .reset(reset),
@@ -1111,8 +1091,7 @@ psg soundchip(
         .tc(tc),
         .density(density),
         .activity_led(LED),
-		  //.fast(1),
-
+		  .fast(fast),
         .img_mounted(img_mounted),
         .img_size(img_size[31:0]),
         .img_wp(2'b0),
@@ -1120,7 +1099,6 @@ psg soundchip(
         .sd_rd(sd_rd),
         .sd_wr(sd_wr),
 		  .sd_ack(sd_ack),
-        //.sd_ack(sd_ack[1]|sd_ack[0]),
         .sd_buff_addr(sd_buff_addr),
         .sd_buff_dout(sd_buff_dout),
         .sd_buff_din(sd_buff_din),
