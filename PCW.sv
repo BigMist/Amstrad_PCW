@@ -161,12 +161,11 @@ localparam CONF_STR = {
 	"OFG,Memory Size,256K,512K,1MB,2MB;",
 	`SEP
 	"P1,Video;",
-   "P1O56,Screen Color,White,Green,Amber;",
    "P1O7,Video System,PAL,NTSC;",
-   "P1F3,gbp,Load Palette;",
+   //"P1F3,gbp,Load Palette;",
    "P1OQR,Fake Colour,None,Loaded palette, PCWPLUS;",
-   "P1OIL,CRT H-Sync Adjust,0,1,2,3,4,5,6,7,-8,-7,-6,-5,-4,-3,-2,-1;",
-   "P1OMP,CRT V-Sync Adjust,0,1,2,3,4,5,6,7,-8,-7,-6,-5,-4,-3,-2,-1;",
+   //"P1OIL,CRT H-Sync Adjust,0,1,2,3,4,5,6,7,-8,-7,-6,-5,-4,-3,-2,-1;",
+   //"P1OMP,CRT V-Sync Adjust,0,1,2,3,4,5,6,7,-8,-7,-6,-5,-4,-3,-2,-1;",
    "P1O13,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%, CRT 75%;",	
 	`SEP
 	"OAC,Joystick,None,Kempston,Spectravideo,Cascade,DKTronics;",
@@ -187,7 +186,11 @@ assign joy_xdata = joy_data;
 wire locked;
 pll pll
 (
+`ifdef USE_CLOCK_50
 	.inclk0   (CLOCK_50),
+`else
+	.inclk0   (CLOCK_27),
+`endif
 	.c0 (clk_sys), // 64 MHz
 	.locked (locked)
 );
@@ -352,20 +355,20 @@ pcw_core pcw_core
 	.vsync(VSync),
 	.hblank(HBlank),
 	.vblank(VBlank),
-	.ce_pix(ce_pix),
+	//.ce_pix(ce_pix),
 
 	.LED(tmpled),
 	.audiomix(audiomix),
 
-	.disp_color(status[6:5]),
+	.disp_color(status[5]),
 	.ntsc(status[7]),
 	.model(status[4]),
 	.memory_size(status[16:15]),
 	.dktronics(status[17]),
-	.palette (palette),
+	//.palette (palette),
 	.fake_colour_mode(status[27:26]),
-	.VShift(status[25:22]),
-   .HShift(status[21:18]),
+	//.VShift(status[25:22]),
+   //.HShift(status[21:18]),
 	
 	.img_mounted(img_mounted),
 	.img_size(img_size),
@@ -385,6 +388,7 @@ pcw_core pcw_core
 	.locked(locked),
 	.*	
 );
+//assign SDRAM_CLK = clk_sys;
 
 ///////////////////////////////////////////////////
 wire        ce_pix;
@@ -509,4 +513,29 @@ spdif spdif
 	.sample_i({{~dac_out[15],dac_out[14:0]},{~dac_out[15],dac_out[14:0]}})
 );
 `endif
+
+altddio_out
+#(
+        .extend_oe_disable("OFF"),
+        .intended_device_family("Cyclone V"),
+        .invert_output("OFF"),
+        .lpm_hint("UNUSED"),
+        .lpm_type("altddio_out"),
+        .oe_reg("UNREGISTERED"),
+        .power_up_high("OFF"),
+        .width(1)
+)
+sdramclk_ddr
+(
+        .datain_h(1'b0),
+        .datain_l(1'b1),
+        .outclock(clk_sys),
+        .dataout(SDRAM_CLK),
+        .aclr(1'b0),
+        .aset(1'b0),
+        .oe(1'b1),
+        .outclocken(1'b1),
+        .sclr(1'b0),
+        .sset(1'b0)
+);
 endmodule
